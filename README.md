@@ -2,7 +2,7 @@
 
 PyQt5 기반의 현대적이고 직관적인 UTC-KST 시간 변환 및 시각화 도구입니다.
 
-![App Preview](https://via.placeholder.com/800x340.png?text=UTC+to+KST+Converter+UI+Preview) <!-- 실제 스크린샷 캡쳐 후 교체 권장 -->
+![App Preview](assets/preview.png)
 
 ## ✨ 주요 기능
 - **듀얼 타임라인**: UTC와 KST 시간을 한눈에 비교할 수 있는 24시간 가로 스크롤 뷰를 제공합니다.
@@ -43,3 +43,4 @@ PyQt5 기반의 현대적이고 직관적인 UTC-KST 시간 변환 및 시각화
 
 ## 📄 라이선스
 이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자유롭게 수정 및 배포가 가능합니다.
+
