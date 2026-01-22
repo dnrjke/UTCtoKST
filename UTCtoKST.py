@@ -270,16 +270,18 @@ if __name__ == "__main__":
 
     app.setQuitOnLastWindowClosed(False)
     
-    # Generic icon
+    # Generic icon (🕒 Emoji) - Adjusted size to prevent clipping
     from PyQt5.QtGui import QPixmap, QPainter, QColor
     pixmap = QPixmap(32, 32)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
-    painter.setBrush(QColor("#4ECDC4"))
-    painter.drawEllipse(2, 2, 28, 28)
+    painter.setFont(QFont("Segoe UI Emoji", 18)) # Reduced from 20 to 18
+    # Use a slightly smaller rect to ensure padding
+    painter.drawText(pixmap.rect().adjusted(1,1,-1,-1), Qt.AlignCenter, "🕒")
     painter.end()
     
     icon = QIcon(pixmap)
+    app.setWindowIcon(icon) # Set taskbar icon
     
     tray = SystemTrayApp(icon)
     
