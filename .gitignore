@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build and Distribution
+build/
+dist/
+*.spec
+*.exe
+
+# IDEs
+.vscode/
+.idea/
