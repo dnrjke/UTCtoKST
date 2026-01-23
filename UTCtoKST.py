@@ -8,6 +8,11 @@ from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 
 import utils
 from ui_components import TimelineContainer
+from alarm_controller import AlarmController
+from alarm_toggle_button import AlarmToggleButton
+from alarm_settings_dialog import AlarmSettingsDialog
+from tray_alarm_popup import TrayAlarmPopup
+from PyQt5.QtCore import QTime
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -37,6 +42,9 @@ class MainWindow(QMainWindow):
             }
         """)
         
+        self.alarm_controller = AlarmController(self)
+        self.alarm_controller.alarm_triggered.connect(self.on_alarm_triggered)
+        
         self.init_ui()
         self.init_timer()
 
@@ -61,6 +69,34 @@ class MainWindow(QMainWindow):
         # Spacer
         self.top_hbox.addWidget(self.lbl_datetime)
         self.top_hbox.addStretch()
+
+        # Alarm Toggle Button
+        self.alarm_btn = AlarmToggleButton()
+        self.alarm_btn.toggled.connect(self.alarm_controller.set_enabled)
+        self.top_hbox.addWidget(self.alarm_btn)
+        
+        # Alarm Settings Button (⚙)
+        self.settings_btn = QPushButton("⚙")
+        self.settings_btn.setFixedSize(32, 32)
+        self.settings_btn.setToolTip("Alarm Settings")
+        self.settings_btn.setCursor(Qt.PointingHandCursor)
+        self.settings_btn.setStyleSheet("""
+            QPushButton {
+                color: white;
+                background-color: transparent;
+                border: 2px solid rgba(255, 255, 255, 0.2);
+                border-radius: 16px;
+                font-size: 16px;
+                line-height: 1;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.1);
+            }
+        """)
+        self.settings_btn.clicked.connect(self.open_alarm_settings)
+        self.top_hbox.addWidget(self.settings_btn)
+
+        self.top_hbox.addSpacing(10)
         
         # Close Button (App Hide)
         self.btn_close = QPushButton("X")
@@ -198,9 +234,23 @@ class MainWindow(QMainWindow):
                 diff_str = f"<span style='color: #95A5A6;'>{time_txt} ago</span>"
             
         # Standardize main text to white, highlight times in yellow
-        txt = (f"Selected: <span style='color: #FFD93D;'>UTC {utc_dt.strftime('%H:%M')}</span> | "
-               f"<span style='color: #FFD93D;'>KST {kst_dt.strftime('%H:%M')}</span> ({diff_str})")
+        txt = f"Selected: <span style='color: #FFD93D;'>UTC {utc_dt.strftime('%H:%M')}</span> | <span style='color: #FFD93D;'>KST {kst_dt.strftime('%H:%M')}</span> ({diff_str})"
         self.info_label.setText(txt)
+
+        # Update alarm target time whenever a slot is selected
+        target_qtime = QTime(kst_dt.hour, kst_dt.minute)
+        self.alarm_controller.set_target_time(target_qtime)
+
+    def open_alarm_settings(self):
+        """Opens the modal settings dialog."""
+        dialog = AlarmSettingsDialog(self.alarm_controller, self)
+        dialog.exec_()
+
+    def on_alarm_triggered(self, message):
+        """Handle alarm trigger: reset UI and show custom popup with message."""
+        self.alarm_btn.setChecked(False)
+        self.popup = TrayAlarmPopup(message)
+        self.popup.show()
     
     def closeEvent(self, event):
         # When user clicks the X or uses Alt+F4, just hide
