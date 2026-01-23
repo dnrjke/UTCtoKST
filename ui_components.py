@@ -110,7 +110,7 @@ class TimelineContainer(QWidget):
     """
     Horizontal scrollable container for the 24 columns.
     """
-    slot_selected = pyqtSignal(object, object) # Emits (utc_dt, kst_dt)
+    slot_selected = pyqtSignal(object, object, int) # Emits (utc_dt, kst_dt, index)
 
     def __init__(self):
         super().__init__()
@@ -157,7 +157,7 @@ class TimelineContainer(QWidget):
         tgt = self.columns[index]
         tgt.set_selected(True)
         
-        self.slot_selected.emit(tgt.utc_dt, tgt.kst_dt)
+        self.slot_selected.emit(tgt.utc_dt, tgt.kst_dt, index)
 
     def select_index(self, index):
         if 0 <= index < len(self.columns):

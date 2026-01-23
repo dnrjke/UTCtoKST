@@ -2,7 +2,7 @@ import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QSystemTrayIcon, QMenu, 
                              QAction, QVBoxLayout, QWidget, QScrollArea, QLabel, 
                              QHBoxLayout, QPushButton)
-from PyQt5.QtCore import Qt, QTimer, QDateTime
+from PyQt5.QtCore import Qt, QTimer, QDateTime, QTime
 from PyQt5.QtGui import QIcon, QFont, QCursor
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 
@@ -12,30 +12,20 @@ from alarm_controller import AlarmController
 from alarm_toggle_button import AlarmToggleButton
 from alarm_settings_dialog import AlarmSettingsDialog
 from tray_alarm_popup import TrayAlarmPopup
-from PyQt5.QtCore import QTime
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("UTC <-> KST Converter")
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.setAttribute(Qt.WA_TranslucentBackground) # Enable transparent window for rounded corners
-        self.resize(800, 340) # Compact height to fit content exactly
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.resize(800, 340)
         
-        # Stylesheet for Window
+        # Stylesheet
         self.setStyleSheet("""
-            QMainWindow {
-                background-color: transparent;
-                border: none;
-            }
-            QLabel {
-                color: white;
-                font-family: 'Segoe UI';
-            }
-            QScrollArea {
-                border: none;
-                background: transparent;
-            }
+            QMainWindow { background-color: transparent; border: none; }
+            QLabel { color: white; font-family: 'Segoe UI'; }
+            QScrollArea { border: none; background: transparent; }
             QWidget#centralWidget {
                  background-color: #2C3E50;
                  border-radius: 10px;
@@ -47,6 +37,10 @@ class MainWindow(QMainWindow):
         
         self.init_ui()
         self.init_timer()
+        
+        # --- Apply Initial Persisted State ---
+        self.alarm_btn.setChecked(self.alarm_controller.enabled)
+        # Timeline index will be applied after first populate in refresh_timeline
 
     def init_ui(self):
         self.central_widget = QWidget()
@@ -55,80 +49,62 @@ class MainWindow(QMainWindow):
         
         self.layout = QVBoxLayout(self.central_widget)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0) # Remove default spacing for precise control
+        self.layout.setSpacing(0)
         
         # --- Top Bar ---
         self.top_bar = QWidget()
         self.top_bar.setStyleSheet("background-color: rgba(0,0,0,0.2); border-top-left-radius: 10px; border-top-right-radius: 10px;")
         self.top_hbox = QHBoxLayout(self.top_bar)
         
-        # Date/Time Display
         self.lbl_datetime = QLabel("Date Time")
         self.lbl_datetime.setFont(QFont("Segoe UI", 10))
-        
-        # Spacer
         self.top_hbox.addWidget(self.lbl_datetime)
         self.top_hbox.addStretch()
 
-        # Alarm Toggle Button
+        # Alarm Toggle
         self.alarm_btn = AlarmToggleButton()
         self.alarm_btn.toggled.connect(self.alarm_controller.set_enabled)
         self.top_hbox.addWidget(self.alarm_btn)
         
-        # Alarm Settings Button (⚙)
+        # Alarm Settings
         self.settings_btn = QPushButton("⚙")
         self.settings_btn.setFixedSize(32, 32)
         self.settings_btn.setToolTip("Alarm Settings")
         self.settings_btn.setCursor(Qt.PointingHandCursor)
         self.settings_btn.setStyleSheet("""
             QPushButton {
-                color: white;
-                background-color: transparent;
-                border: 2px solid rgba(255, 255, 255, 0.2);
-                border-radius: 16px;
-                font-size: 16px;
-                line-height: 1;
+                color: white; background-color: transparent; border: 2px solid rgba(255, 255, 255, 0.2);
+                border-radius: 16px; font-size: 16px; line-height: 1;
             }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.1);
-            }
+            QPushButton:hover { background-color: rgba(255, 255, 255, 0.1); }
         """)
         self.settings_btn.clicked.connect(self.open_alarm_settings)
         self.top_hbox.addWidget(self.settings_btn)
 
         self.top_hbox.addSpacing(10)
         
-        # Close Button (App Hide)
         self.btn_close = QPushButton("X")
         self.btn_close.setFixedSize(30, 30)
         self.btn_close.setStyleSheet("""
-            QPushButton {
-                color: white; 
-                background: transparent; 
-                font-weight: bold;
-                border: none;
-            }
-            QPushButton:hover {
-                color: #FF6B6B;
-            }
+            QPushButton { color: white; background: transparent; font-weight: bold; border: none; }
+            QPushButton:hover { color: #FF6B6B; }
         """)
-        self.btn_close.clicked.connect(self.hide) # Just hide, don't exit
+        self.btn_close.clicked.connect(self.hide)
         self.top_hbox.addWidget(self.btn_close)
         
         self.layout.addWidget(self.top_bar)
         
-        # --- Info Bar (Selection Info) ---
-        self.info_label = QLabel("Select a time slot to see details.")
+        # --- Info Bar ---
+        self.info_label = QLabel("Select a time slot.")
         self.info_label.setAlignment(Qt.AlignCenter)
         self.info_label.setFont(QFont("Segoe UI", 12))
         self.info_label.setStyleSheet("color: #FFD93D; background-color: #2C3E50; padding: 5px;")
         self.layout.addWidget(self.info_label)
 
-        # --- Timeline Area ---
+        # --- Timeline ---
         class HorizontalScrollArea(QScrollArea):
              def wheelEvent(self, event):
                  if event.angleDelta().y() != 0:
-                     # Scroll horizontally instead of vertically
                      self.horizontalScrollBar().setValue(
                          self.horizontalScrollBar().value() - event.angleDelta().y()
                      )
@@ -140,45 +116,23 @@ class MainWindow(QMainWindow):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        
-        # Custom Scrollbar Style (Thin & Modern)
         self.scroll_area.setStyleSheet(f"""
-            QScrollArea {{
-                border: none;
-                background: transparent;
-                background-color: transparent;
-            }}
-            QScrollBar:horizontal {{
-                border: none;
-                background: {utils.COLOR_TIMELINE_BG};
-                height: 8px; /* Thin */
-                margin: 0px 0px 0px 0px;
-            }}
-            QScrollBar::handle:horizontal {{
-                background: #4CA1AF;
-                min-width: 20px;
-                border-radius: 4px;
-            }}
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
-                width: 0px;
-                background: none;
-            }}
-            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
-                background: none;
-            }}
+            QScrollArea {{ border: none; background: transparent; }}
+            QScrollBar:horizontal {{ border: none; background: {utils.COLOR_TIMELINE_BG}; height: 8px; margin: 0; }}
+            QScrollBar::handle:horizontal {{ background: #4CA1AF; min-width: 20px; border-radius: 4px; }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; background: none; }}
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: none; }}
         """)
         
         self.timeline = TimelineContainer()
-        self.timeline.slot_selected.connect(self.update_info_label)
+        self.timeline.slot_selected.connect(self.on_slot_selected)
         
         self.scroll_area.setWidget(self.timeline)
         self.layout.addWidget(self.scroll_area)
         
-        # --- Populate Data ---
         self.refresh_timeline()
 
     def init_timer(self):
-        # Update top bar time every second
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_top_bar)
         self.timer.start(1000)
@@ -187,29 +141,36 @@ class MainWindow(QMainWindow):
     def update_top_bar(self):
         now_utc = utils.get_current_time_utc()
         now_kst = utils.get_current_time_kst()
-        
         txt = f"UTC: {now_utc.strftime('%Y-%m-%d %H:%M:%S')}  |  KST: {now_kst.strftime('%Y-%m-%d %H:%M:%S')}"
         self.lbl_datetime.setText(txt)
 
     def refresh_timeline(self):
-        # Start from current UTC hour rounded down
         now_utc = utils.get_current_time_utc().replace(minute=0, second=0, microsecond=0)
-        
-        # "UTC current time aligned to left" -> Start at now_utc
         self.timeline.populate(now_utc)
         
-        # Select the first one by default (Current time)
-        self.timeline.select_index(0)
+        # Restore saved selection index (or 0)
+        saved_idx = self.alarm_controller.selected_time_index
+        # Ensure index is within range of what was just populated
+        if 0 <= saved_idx < 24:
+            self.timeline.select_index(saved_idx)
+        else:
+            self.timeline.select_index(0)
 
-    def update_info_label(self, utc_dt, kst_dt):
+    def on_slot_selected(self, utc_dt, kst_dt, index):
+        """Handle selection and PERSIST the state."""
+        # Visual Update
+        self.update_info_text(utc_dt, kst_dt)
+        
+        # Persist Selection to Controller
+        target_qtime = QTime(kst_dt.hour, kst_dt.minute)
+        self.alarm_controller.set_target_time(target_qtime, index)
+
+    def update_info_text(self, utc_dt, kst_dt):
         now_utc = utils.get_current_time_utc().replace(tzinfo=utils.UTC_TZ)
         utc_dt = utc_dt.replace(tzinfo=utils.UTC_TZ)
-        
-        # Diff from NOW
         diff = utc_dt - now_utc
         total_seconds = diff.total_seconds()
         
-        # Color coding for relative time
         if abs(total_seconds) < 60:
             diff_str = "<span style='color: #FF6B6B;'>Right Now</span>"
         else:
@@ -217,43 +178,27 @@ class MainWindow(QMainWindow):
             secs = abs(int(total_seconds))
             hours = secs // 3600
             minutes = (secs % 3600) // 60
-            
             time_parts = []
-            if hours > 0:
-                time_parts.append(f"{hours} hours")
-            if minutes > 0:
-                time_parts.append(f"{minutes} min")
-                
+            if hours > 0: time_parts.append(f"{hours} hours")
+            if minutes > 0: time_parts.append(f"{minutes} min")
             time_txt = " ".join(time_parts) if time_parts else "0 min"
+            diff_str = f"<span style='color: #4ECDC4;'>in {time_txt}</span>" if is_future else f"<span style='color: #95A5A6;'>{time_txt} ago</span>"
             
-            if is_future:
-                # Future: Teal/Modern
-                diff_str = f"<span style='color: #4ECDC4;'>in {time_txt}</span>"
-            else:
-                # Past: Subtle Gray
-                diff_str = f"<span style='color: #95A5A6;'>{time_txt} ago</span>"
-            
-        # Standardize main text to white, highlight times in yellow
         txt = f"Selected: <span style='color: #FFD93D;'>UTC {utc_dt.strftime('%H:%M')}</span> | <span style='color: #FFD93D;'>KST {kst_dt.strftime('%H:%M')}</span> ({diff_str})"
         self.info_label.setText(txt)
 
-        # Update alarm target time whenever a slot is selected
-        target_qtime = QTime(kst_dt.hour, kst_dt.minute)
-        self.alarm_controller.set_target_time(target_qtime)
-
     def open_alarm_settings(self):
-        """Opens the modal settings dialog."""
         dialog = AlarmSettingsDialog(self.alarm_controller, self)
         dialog.exec_()
 
     def on_alarm_triggered(self, message):
-        """Handle alarm trigger: reset UI and show custom popup with message."""
-        self.alarm_btn.setChecked(False)
+        """Handle alarm trigger: Show custom popup. Note: No longer auto-disables the toggle."""
+        # User requested persistence, so we keep the toggle ARMED (True) if they want repeating.
+        # If they want it off, they toggle manually.
         self.popup = TrayAlarmPopup(message)
         self.popup.show()
     
     def closeEvent(self, event):
-        # When user clicks the X or uses Alt+F4, just hide
         event.ignore()
         self.hide()
 
@@ -271,30 +216,20 @@ class SystemTrayApp(QSystemTrayIcon):
     def __init__(self, icon, parent=None):
         super().__init__(icon, parent)
         self.window = MainWindow()
-        
-        # Standard QMenu for System Tray
         self.menu = QMenu()
         
-        # Open (열기)
         action_open = QAction("열기", self)
         action_open.triggered.connect(self.show_window)
         self.menu.addAction(action_open)
-        
         self.menu.addSeparator()
-
-        # Exit (종료)
         action_exit = QAction("종료", self)
-        action_exit.triggered.connect(QApplication.quit) # Immediate exit
+        action_exit.triggered.connect(QApplication.quit)
         self.menu.addAction(action_exit)
         
-        # Set Context Menu - This automatically handles right-click UX
         self.setContextMenu(self.menu)
-        
-        # Hook activation for Left-click or Double-click
         self.activated.connect(self.on_activated)
 
     def on_activated(self, reason):
-        # Slack/Discord style: Left-click (Trigger) or Double-click shows window
         if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
             if self.window.isHidden():
                 self.show_window()
@@ -302,47 +237,37 @@ class SystemTrayApp(QSystemTrayIcon):
                 self.window.hide()
 
     def show_window(self):
-        self.window.refresh_timeline()
+        # Only refresh if necessary, or just show
         self.window.show()
         self.window.activateWindow()
 
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    
-    # Single Instance Check
     app_id = "UTCtoKST_SingleInstance_Lock"
     socket = QLocalSocket()
     socket.connectToServer(app_id)
     if socket.waitForConnected(500):
-        # Already running. Optional: could send a message to show window.
         sys.exit(0)
 
     app.setQuitOnLastWindowClosed(False)
     
-    # Generic icon (🕒 Emoji) - Adjusted size to prevent clipping
+    # Generic icon
     from PyQt5.QtGui import QPixmap, QPainter, QColor
     pixmap = QPixmap(32, 32)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
-    painter.setFont(QFont("Segoe UI Emoji", 18)) # Reduced from 20 to 18
-    # Use a slightly smaller rect to ensure padding
+    painter.setFont(QFont("Segoe UI Emoji", 18))
     painter.drawText(pixmap.rect().adjusted(1,1,-1,-1), Qt.AlignCenter, "🕒")
     painter.end()
     
     icon = QIcon(pixmap)
-    app.setWindowIcon(icon) # Set taskbar icon
+    app.setWindowIcon(icon)
     
     tray = SystemTrayApp(icon)
-    
-    # Single Instance Server: Listen for new attempts and show window
     server = QLocalServer()
     server.listen(app_id)
     server.newConnection.connect(tray.show_window)
     
     tray.show()
-    
-    # Initial show
     tray.show_window()
-    
     sys.exit(app.exec_())

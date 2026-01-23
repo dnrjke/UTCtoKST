@@ -17,7 +17,7 @@ class AlarmSettingsDialog(QDialog):
         self._current_index = self.alarm_controller.active_preset_index
         self.setFixedWidth(420)
         
-        # Stylesheet (Yellow highlights for checked presets restored)
+        # Stylesheet (Consolidated with yellow active highlights)
         self.setStyleSheet("""
             QWidget#mainContainer {
                 background-color: #2C3E50;
@@ -66,9 +66,10 @@ class AlarmSettingsDialog(QDialog):
                 background-color: #34495E;
                 border: 1px solid #4CA1AF;
                 padding: 0px;
-                font-size: 18px; /* Larger numbers */
+                font-size: 20px; /* Highly visible numbers */
             }
             QPushButton#presetBtn:hover { background-color: #4CA1AF; }
+            /* Specific fix for Preset checked state */
             QPushButton#presetBtn:checked {
                 background-color: #FFD93D;
                 color: #2C3E50;
@@ -136,7 +137,7 @@ class AlarmSettingsDialog(QDialog):
             btn = QPushButton(str(i+1))
             btn.setObjectName("presetBtn")
             btn.setCheckable(True)
-            btn.setFixedSize(40, 40)
+            btn.setFixedSize(45, 45) # Slightly larger
             btn.setCursor(Qt.PointingHandCursor)
             btn.clicked.connect(self._create_preset_handler(i))
             self.preset_buttons.append(btn)
@@ -152,6 +153,7 @@ class AlarmSettingsDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(20)
         
+        # "Reset Current" as requested
         self.btn_reset = QPushButton("Reset current")
         self.btn_reset.setObjectName("resetBtn")
         self.btn_reset.setCursor(Qt.PointingHandCursor)
@@ -178,9 +180,9 @@ class AlarmSettingsDialog(QDialog):
         idx = self.alarm_controller.active_preset_index
         message = self.alarm_controller.message
         self.txt_message.setText(message)
-        self.select_preset_ui(idx)
+        self._update_preset_selection_ui(idx)
 
-    def select_preset_ui(self, index):
+    def _update_preset_selection_ui(self, index):
         """Update toggle state of buttons."""
         for i, btn in enumerate(self.preset_buttons):
             btn.setChecked(i == index)
@@ -188,10 +190,10 @@ class AlarmSettingsDialog(QDialog):
 
     def _create_preset_handler(self, idx):
         def handler():
-            # When clicking a preset button, load that preset's message into textbox
+            # Load stored preset message into textbox when clicked
             msg = self.alarm_controller.get_preset_message(idx)
             self.txt_message.setText(msg)
-            self.select_preset_ui(idx)
+            self._update_preset_selection_ui(idx)
         return handler
 
     def apply_changes(self):
@@ -201,7 +203,7 @@ class AlarmSettingsDialog(QDialog):
         self.accept()
 
     def reset_preset(self):
-        """Resets the currently selected preset to its individual default."""
+        """Resets the currently selected preset to default."""
         new_msg = self.alarm_controller.reset_preset(self._current_index)
         self.txt_message.setText(new_msg)
         
